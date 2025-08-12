@@ -1,34 +1,13 @@
 {
-  "name": "adc-viewer-electron",
-  "version": "0.1.0",
+  "name": "osc-scope",
+  "version": "1.0.0",
+  "description": "USB CDC 실시간 오실로스코프 (Electron + SerialPort)",
   "main": "main.js",
-  "type": "commonjs",
   "scripts": {
-    "dev": "electron .",
-    "postinstall": "electron-builder install-app-deps",
-    "rebuild": "electron-rebuild -f -w serialport",
-    "build": "electron-builder -w"
+    "start": "electron ."
   },
   "dependencies": {
-    "serialport": "^12.0.0"
-  },
-  "devDependencies": {
     "electron": "^31.0.0",
-    "electron-builder": "^24.13.3",
-    "electron-rebuild": "^3.6.0"
-  },
-  "build": {
-    "appId": "com.example.adcviewer",
-    "productName": "ADC Viewer",
-    "files": [
-      "main.js",
-      "preload.js",
-      "renderer/**",
-      "package.json"
-    ],
-    "asar": true,
-    "win": {
-      "target": ["nsis", "portable"]
-    }
+    "serialport": "^12.0.0"
   }
 }

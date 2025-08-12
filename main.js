@@ -1,129 +1,138 @@
+// main.js
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { SerialPort } = require('serialport');
 
-let ADC_LEN = 300;                 // ⬅ 가변
-const ADC_CHANNELS = 8;
-const BYTES_PER_SAMPLE = 2;
-let FRAME_SIZE = ADC_LEN * ADC_CHANNELS * BYTES_PER_SAMPLE; // ⬅ 가변 반영
-
 let win;
 let port = null;
 let acc = Buffer.alloc(0);
-let sampleBase = 0;
+
+// MCU 설정과 반드시 일치해야 함
+const ADC_CHANNELS = 8;
+const ADC_LEN = 300;
+const BYTES_PER_SAMPLE = 2;
+const FRAME_BYTES = ADC_CHANNELS * ADC_LEN * BYTES_PER_SAMPLE; // 4800
+// 프레임 종단 마커(마지막 두 개의 uint16_t가 0xFFFF,0xFFFF)
+const MARKER = Buffer.from([0xFF, 0xFF, 0xFF, 0xFF]);
+
+// 안전 가드: 축적 버퍼 상한 (필요시 조정)
+const MAX_ACC_BYTES = 8 * 1024 * 1024;
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1100,
-    height: 760,
+    width: 1280,
+    height: 860,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      nodeIntegration: false
     }
+    // devTools: true
   });
-  win.loadFile(path.join(__dirname, 'renderer/index.html'));
+
+  win.loadFile('index.html');
 }
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
-/* ---- 유틸: 샘플 수 설정 ---- */
-function setSamples(n) {
-  let v = Number(n) | 0;
-  if (!Number.isFinite(v) || v < 1) v = 1;
-  if (v > 32768) v = 32768; // 안전 상한 (원하면 조정)
-  ADC_LEN = v;
-  FRAME_SIZE = ADC_LEN * ADC_CHANNELS * BYTES_PER_SAMPLE;
-  // 프레이밍 리셋
-  acc = Buffer.alloc(0);
-  sampleBase = 0;
-  // 렌더러에 현재 파라미터 알림
-  if (win && !win.isDestroyed()) {
-    win.webContents.send('params', { samples: ADC_LEN, frameBytes: FRAME_SIZE });
-  }
-}
-
-/* ---- 포트 목록 ---- */
-ipcMain.handle('list-ports', async () => {
-  const list = await SerialPort.list();
-  return list.map(p => ({ path: p.path, friendlyName: p.friendlyName, manufacturer: p.manufacturer }));
+/** 포트 리스트 */
+ipcMain.handle('serial:list', async () => {
+  const ports = await SerialPort.list();
+  return ports.map(p => ({
+    path: p.path,
+    manufacturer: p.manufacturer,
+    serialNumber: p.serialNumber,
+    productId: p.productId,
+    vendorId: p.vendorId
+  }));
 });
 
-/* ---- 포트 열기 ---- */
-ipcMain.handle('open-port', async (_evt, { path, baudRate }) => {
-  if (port && port.isOpen) {
-    await new Promise(r => port.close(r));
-    port = null;
-  }
-  return new Promise((resolve, reject) => {
-    port = new SerialPort({ path, baudRate, autoOpen: true }, (err) => {
-      if (err) {
-        port = null;
-        return reject(err.message);
-      }
-      acc = Buffer.alloc(0);
-      sampleBase = 0;
-      port.on('data', onSerialData);
-      // 현재 파라미터도 즉시 통지
-      setSamples(ADC_LEN);
-      resolve('ok');
+/** 포트 연결 */
+ipcMain.handle('serial:open', async (e, { path, baudRate }) => {
+  try {
+    await closePort();
+
+    port = new SerialPort({ path, baudRate, autoOpen: false });
+    await new Promise((resolve, reject) => {
+      port.open(err => (err ? reject(err) : resolve()));
     });
-  });
-});
 
-/* ---- 포트 닫기 ---- */
-ipcMain.handle('close-port', async () => {
-  if (!port) return 'noport';
-  return new Promise((resolve) => {
-    port.off('data', onSerialData);
-    port.close(() => {
+    acc = Buffer.alloc(0);
+
+    port.on('data', onSerialData);
+    port.on('error', (err) => {
+      win?.webContents.send('serial:status', { type: 'error', message: String(err) });
+    });
+    port.on('close', () => {
+      win?.webContents.send('serial:status', { type: 'closed' });
       port = null;
-      acc = Buffer.alloc(0);
-      resolve('closed');
     });
-  });
-});
 
-/* ---- 샘플 수 설정 IPC ---- */
-ipcMain.handle('set-samples', async (_evt, n) => {
-  setSamples(n);
-  return { samples: ADC_LEN, frameBytes: FRAME_SIZE };
-});
-
-function onSerialData(chunk) {
-  acc = Buffer.concat([acc, chunk]);
-  while (acc.length >= FRAME_SIZE) {
-    const frame = acc.subarray(0, FRAME_SIZE);
-    acc = acc.subarray(FRAME_SIZE);
-    const rows = parseFrameToDiffRows(frame);
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('frame', rows); // 최신 프레임만 교체 표시
-    }
+    win?.webContents.send('serial:status', { type: 'open', path, baudRate });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err) };
   }
+});
+
+/** 포트 닫기 */
+ipcMain.handle('serial:close', async () => {
+  try {
+    await closePort();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+});
+
+function closePort() {
+  return new Promise((resolve) => {
+    if (!port) return resolve();
+    try {
+      port.removeAllListeners('data');
+      port.close(() => resolve());
+    } catch (_) {
+      resolve();
+    } finally {
+      port = null;
+    }
+  });
 }
 
-// frame(Buffer) -> [ [x, ch1, ch2, ch3, ch4], ... ] (길이 = ADC_LEN)
-function parseFrameToDiffRows(frame) {
-  const rows = new Array(ADC_LEN);
-  let off = 0;
-  for (let i = 0; i < ADC_LEN; i++) {
-    const a0 = frame.readUInt16LE(off); off += 2;
-    const a1 = frame.readUInt16LE(off); off += 2;
-    const a2 = frame.readUInt16LE(off); off += 2;
-    const a3 = frame.readUInt16LE(off); off += 2;
-    const a4 = frame.readUInt16LE(off); off += 2;
-    const a5 = frame.readUInt16LE(off); off += 2;
-    const a6 = frame.readUInt16LE(off); off += 2;
-    const a7 = frame.readUInt16LE(off); off += 2;
+/** 수신 처리: 마커 기반 프레임 추출(재동기화 내장) */
+function onSerialData(chunk) {
+  if (!chunk || chunk.length === 0) return;
+  acc = Buffer.concat([acc, chunk]);
 
-    const ch1 = (a0|0) - (a1|0);
-    const ch2 = (a2|0) - (a3|0);
-    const ch3 = (a4|0) - (a5|0);
-    const ch4 = (a6|0) - (a7|0);
-
-    rows[i] = [sampleBase + i, ch1, ch2, ch3, ch4];
+  if (acc.length > MAX_ACC_BYTES) {
+    // 메모리 가드: 마지막 마커 이후만 보존
+    const lastMarker = acc.lastIndexOf(MARKER);
+    acc = lastMarker >= 0 ? acc.slice(lastMarker + MARKER.length) : Buffer.alloc(0);
+    win?.webContents.send('serial:status', { type: 'warn', message: 'acc buffer trimmed' });
   }
-  sampleBase += ADC_LEN;
-  return rows;
+
+  // 가능한 모든 프레임 추출
+  while (true) {
+    // 유효한 프레임의 마커는 최소 FRAME_BYTES 이후에 존재 가능
+    const searchStart = Math.max(0, FRAME_BYTES - MARKER.length);
+    const pos = acc.indexOf(MARKER, searchStart);
+    if (pos === -1) break;
+
+    // pos는 마커 시작 인덱스, 그 앞 FRAME_BYTES가 페이로드여야 함
+    const start = pos - FRAME_BYTES;
+    if (start < 0) {
+      // 마커가 너무 이른 경우 -> 이 마커를 넘기고 다시 탐색
+      acc = acc.slice(pos + MARKER.length);
+      continue;
+    }
+
+    // 페이로드 추출
+    const framePayload = acc.slice(start, pos); // 4800 bytes
+    // 소비: 페이로드 + 마커
+    acc = acc.slice(pos + MARKER.length);
+
+    // 렌더러로 전달 (Buffer 그대로 보냄)
+    win?.webContents.send('serial:frame', framePayload);
+  }
 }

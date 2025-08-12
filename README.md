@@ -1,6 +1,6 @@
 # ADC Viewer Electron 🎛️📈
 
-USB CDC로 수신한 `uint16_t adcmem[300][8]` 버퍼를 프레임(300×8×2B) 단위로 받아, **차분 4채널 파형**을 **실시간 그래프로 시각화**하는 Windows용 Electron 앱입니다.
+USB CDC로 수신한 `uint16_t adcmem[300][8]` 버퍼를 프레임((300+1)×8×2B) 단위로 받아, **차분 4채널 파형**을 **실시간 그래프로 시각화**하는 Windows용 Electron 앱입니다.
 
 ## 설명
 
@@ -13,7 +13,9 @@ channel3 = adcmem[i][4] - adcmem[i][5];
 channel4 = adcmem[i][6] - adcmem[i][7];
 ```
 
-* 입력: USB CDC (RAW, Little-Endian, `300×8×uint16_t = 4800 bytes/frame`)
+* 입력: USB CDC (RAW, Little-Endian, `(300+1)×8×uint16_t = 4816 bytes/frame`)
+  - 마지막 데이터는 0xFFFF로 프레임 끝을 알림
+
 * 출력: 최신 프레임 기준 실시간 파형 (Dygraphs)
 
 ---
@@ -48,6 +50,6 @@ npm run build
 * **플랫폼**: Electron (Windows)
 * **시리얼**: `serialport`
 * **그래프**: Dygraphs
-* **프레이밍**: 4800B 고정 프레임 버퍼 파싱 → 4채널 차분 계산 → 최신 프레임만 갱신 표시
+* **프레이밍**: 4816B 고정 프레임 버퍼 파싱 → 4채널 차분 계산 → 최신 프레임만 갱신 표시
 
 원하시면 스크린샷/아이콘/포터블 타겟 등 추가 문서화도 정리해 드릴게요.

@@ -1,10 +1,10 @@
+// preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('adc', {
-  listPorts: () => ipcRenderer.invoke('list-ports'),
-  openPort: (opts) => ipcRenderer.invoke('open-port', opts),
-  closePort: () => ipcRenderer.invoke('close-port'),
-  setSamples: (n) => ipcRenderer.invoke('set-samples', n),
-  onParams: (cb) => ipcRenderer.on('params', (_e, p) => cb(p)),
-  onFrame: (cb) => ipcRenderer.on('frame', (_e, rows) => cb(rows)),
+contextBridge.exposeInMainWorld('scopeAPI', {
+  listPorts: () => ipcRenderer.invoke('serial:list'),
+  open: (opts) => ipcRenderer.invoke('serial:open', opts),
+  close: () => ipcRenderer.invoke('serial:close'),
+  onStatus: (cb) => ipcRenderer.on('serial:status', (_, msg) => cb(msg)),
+  onFrame: (cb) => ipcRenderer.on('serial:frame', (_, frameBuf) => cb(frameBuf))
 });
