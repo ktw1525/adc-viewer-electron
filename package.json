@@ -1,13 +1,16 @@
 {
   "name": "osc-scope",
   "version": "1.0.0",
-  "description": "USB CDC 실시간 오실로스코프 (Electron + SerialPort)",
+  "description": "USB CDC 실시간 오실로스코프 (Electron + Node)",
   "main": "main.js",
+  "author": "you",
+  "license": "MIT",
   "scripts": {
     "start": "electron ."
   },
   "dependencies": {
-    "electron": "^31.0.0",
+    "@serialport/parser-readline": "^12.0.0",
+    "electron": "^31.3.0",
     "serialport": "^12.0.0"
   }
 }

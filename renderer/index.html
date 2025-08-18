@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>USB CDC 오실로스코프</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">USB CDC 오실로스코프</div>
+    <div class="status">
+      <span id="conn-status">연결 안 됨</span>
+    </div>
+  </header>
+
+  <section class="toolbar">
+    <div class="group">
+      <label>포트</label>
+      <select id="port-select"></select>
+      <label>Baud</label>
+      <input id="baud" type="number" value="115200" min="1200" step="1200" />
+      <button id="refresh">검색</button>
+      <button id="connect">연결</button>
+      <button id="disconnect">해제</button>
+    </div>
+
+    <div class="group">
+      <label>샘플 길이</label>
+      <input id="sampleLen" type="range" min="100" max="5000" value="300" />
+      <span id="sampleLenVal">300</span>
+      <label>트리거 위치(%)</label>
+      <input id="trigPos" type="range" min="5" max="95" value="20" />
+      <span id="trigPosVal">20%</span>
+    </div>
+
+    <div class="group">
+      <label>모드</label>
+      <div class="radio">
+        <label><input type="radio" name="mode" value="auto" checked> Auto</label>
+        <label><input type="radio" name="mode" value="normal"> Normal</label>
+        <label><input type="radio" name="mode" value="single"> Single</label>
+        <button id="singleArm">Single Arm</button>
+        <button id="runStop">Run/Stop</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <label>트리거 소스</label>
+      <select id="trigSource">
+        <option value="0">CH1</option>
+        <option value="1">CH2</option>
+        <option value="2">CH3</option>
+        <option value="3">CH4</option>
+      </select>
+      <label>엣지</label>
+      <select id="trigEdge">
+        <option value="rising">Rising</option>
+        <option value="falling">Falling</option>
+      </select>
+      <label>레벨</label>
+      <input id="trigLevel" type="number" value="0" step="1" />
+    </div>
+
+    <div class="group">
+      <div class="ch">
+        <label><input type="checkbox" class="chVis" data-ch="0" checked> CH1</label>
+        <input type="range" class="chOff" data-ch="0" min="-300" max="300" value="120">
+      </div>
+      <div class="ch">
+        <label><input type="checkbox" class="chVis" data-ch="1" checked> CH2</label>
+        <input type="range" class="chOff" data-ch="1" min="-300" max="300" value="40">
+      </div>
+      <div class="ch">
+        <label><input type="checkbox" class="chVis" data-ch="2" checked> CH3</label>
+        <input type="range" class="chOff" data-ch="2" min="-300" max="300" value="-40">
+      </div>
+      <div class="ch">
+        <label><input type="checkbox" class="chVis" data-ch="3" checked> CH4</label>
+        <input type="range" class="chOff" data-ch="3" min="-300" max="300" value="-120">
+      </div>
+    </div>
+  </section>
+
+  <main>
+    <canvas id="scope" width="1180" height="520"></canvas>
+    <div id="msg"></div>
+  </main>
+
+  <footer>
+    <small>모든 샘플을 누락 없이 수집합니다(표시 프레임은 트리거에 맞춰 윈도우링).</small>
+  </footer>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
