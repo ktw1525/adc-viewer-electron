@@ -1,0 +1,4 @@
+../Core/Src/adc.c:14:13:next_switch	4	static
+../Core/Src/adc.c:18:6:Update_Timer	16	static
+../Core/Src/adc.c:27:6:ADC_Setup	16	static
+../Core/Src/adc.c:35:6:HAL_ADC_ConvCpltCallback	152	static

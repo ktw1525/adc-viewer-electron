@@ -1,0 +1,3 @@
+../USB_DEVICE/App/usb_device.c:58:6:USB_CDC_RxHandler	3
+../USB_DEVICE/App/usb_device.c:70:5:_write	1
+../USB_DEVICE/App/usb_device.c:82:6:MX_USB_DEVICE_Init	5
